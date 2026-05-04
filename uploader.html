@@ -8,11 +8,9 @@
     .container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 100%; }
     h2 { color: #333; margin-top: 0; }
     
-    /* Token Setup Section */
     #setupSection { background: #fff3e0; padding: 15px; border-radius: 6px; border: 1px solid #ffcc80; margin-bottom: 20px; text-align: left; font-size: 14px;}
     #tokenInput { width: 100%; padding: 8px; box-sizing: border-box; margin-top: 5px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
     
-    /* Main Upload Section */
     #mainSection { display: none; }
     input[type="file"] { display: none; }
     .btn { background-color: #2196F3; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; display: inline-block; width: 100%; box-sizing: border-box; margin-bottom: 20px;}
@@ -21,7 +19,6 @@
     
     #status { color: #666; margin-bottom: 20px; font-weight: bold; height: 20px;}
     
-    /* Result Section */
     #result { display: none; background: #e3f2fd; padding: 15px; border-radius: 6px; border: 1px solid #90caf9; }
     textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; resize: none; box-sizing: border-box; margin-bottom: 10px; font-family: monospace; font-size: 12px;}
     .copy-btn { background-color: #4CAF50; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;}
@@ -52,14 +49,10 @@
   </div>
 
   <script>
-    // ==========================================
-    // TEACHER CONFIGURATION: CHANGE THESE TWO LINES
-    // ==========================================
-    const GITHUB_USERNAME = "your-username"; 
-    const REPO_NAME = "math-things"; 
-    // ==========================================
+    // Configured for your specific repository
+    const GITHUB_USERNAME = "MrH-SWES"; 
+    const REPO_NAME = "worksheet-builder"; 
 
-    // Check if token is already saved
     let currentToken = localStorage.getItem('gh_token');
     if (currentToken) {
       document.getElementById('setupSection').style.display = 'none';
@@ -76,7 +69,6 @@
       }
     }
 
-    // Handle the file upload
     document.getElementById('pdfInput').addEventListener('change', async function(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -89,16 +81,13 @@
       uploadLabel.style.display = 'none';
       resultDiv.style.display = 'none';
 
-      // 1. Read the PDF and convert to Base64
       const reader = new FileReader();
       reader.onload = async function(event) {
         const base64Data = event.target.result.split(',')[1];
         
-        // 2. Generate a safe filename (adds timestamp to prevent overwrite errors)
         const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
         const fileName = Date.now() + "_" + cleanName;
         
-        // 3. Push to GitHub API
         const apiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${REPO_NAME}/contents/pdfs/${fileName}`;
         
         try {
@@ -116,9 +105,8 @@
 
           if (!response.ok) throw new Error("Upload failed. Check token.");
 
-          // 4. Generate the final Google Classroom URL
-          // Assumes you are using GitHub Pages and your viewer is called worksheet.html
-          const pagesUrl = `https://${GITHUB_USERNAME}.github.io/${REPO_NAME}/worksheet.html?pdf=pdfs/${fileName}`;
+          // Directs to index.html in your repo root
+          const pagesUrl = `https://${GITHUB_USERNAME}.github.io/${REPO_NAME}/index.html?pdf=pdfs/${fileName}`;
           
           document.getElementById('linkOutput').value = pagesUrl;
           statusDiv.innerText = "✅ Ready!";
@@ -129,7 +117,6 @@
         } catch (error) {
           statusDiv.innerText = "❌ Error: " + error.message;
           uploadLabel.style.display = 'inline-block';
-          // If it fails, maybe token is bad. Show setup again.
           localStorage.removeItem('gh_token');
           document.getElementById('setupSection').style.display = 'block';
         }
