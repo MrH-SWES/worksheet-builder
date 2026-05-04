@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Worksheet Link Generator</title>
+  <style>
+    body { font-family: sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+    .container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 100%; }
+    h2 { color: #333; margin-top: 0; }
+    
+    /* Token Setup Section */
+    #setupSection { background: #fff3e0; padding: 15px; border-radius: 6px; border: 1px solid #ffcc80; margin-bottom: 20px; text-align: left; font-size: 14px;}
+    #tokenInput { width: 100%; padding: 8px; box-sizing: border-box; margin-top: 5px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+    
+    /* Main Upload Section */
+    #mainSection { display: none; }
+    input[type="file"] { display: none; }
+    .btn { background-color: #2196F3; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; display: inline-block; width: 100%; box-sizing: border-box; margin-bottom: 20px;}
+    .btn:hover { background-color: #1976D2; }
+    .btn:disabled { background-color: #9e9e9e; cursor: not-allowed; }
+    
+    #status { color: #666; margin-bottom: 20px; font-weight: bold; height: 20px;}
+    
+    /* Result Section */
+    #result { display: none; background: #e3f2fd; padding: 15px; border-radius: 6px; border: 1px solid #90caf9; }
+    textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; resize: none; box-sizing: border-box; margin-bottom: 10px; font-family: monospace; font-size: 12px;}
+    .copy-btn { background-color: #4CAF50; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;}
+    .copy-btn:hover { background-color: #45a049; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>📄 GC Link Generator</h2>
+
+    <div id="setupSection">
+      <label><b>One-Time Setup:</b> Enter GitHub Token</label>
+      <input type="password" id="tokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+      <button onclick="saveToken()" style="padding: 5px 10px; cursor: pointer;">Save Token</button>
+    </div>
+
+    <div id="mainSection">
+      <label for="pdfInput" class="btn" id="uploadLabel">1. Select PDF Worksheet</label>
+      <input type="file" id="pdfInput" accept="application/pdf">
+      
+      <div id="status"></div>
+      
+      <div id="result">
+        <textarea id="linkOutput" rows="3" readonly></textarea>
+        <button class="copy-btn" onclick="copyLink()">2. Copy Link for Classroom</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // TEACHER CONFIGURATION: CHANGE THESE TWO LINES
+    // ==========================================
+    const GITHUB_USERNAME = "your-username"; 
+    const REPO_NAME = "math-things"; 
+    // ==========================================
+
+    // Check if token is already saved
+    let currentToken = localStorage.getItem('gh_token');
+    if (currentToken) {
+      document.getElementById('setupSection').style.display = 'none';
+      document.getElementById('mainSection').style.display = 'block';
+    }
+
+    function saveToken() {
+      const token = document.getElementById('tokenInput').value.trim();
+      if (token) {
+        localStorage.setItem('gh_token', token);
+        currentToken = token;
+        document.getElementById('setupSection').style.display = 'none';
+        document.getElementById('mainSection').style.display = 'block';
+      }
+    }
+
+    // Handle the file upload
+    document.getElementById('pdfInput').addEventListener('change', async function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const statusDiv = document.getElementById('status');
+      const resultDiv = document.getElementById('result');
+      const uploadLabel = document.getElementById('uploadLabel');
+      
+      statusDiv.innerText = "⏳ Uploading to GitHub...";
+      uploadLabel.style.display = 'none';
+      resultDiv.style.display = 'none';
+
+      // 1. Read the PDF and convert to Base64
+      const reader = new FileReader();
+      reader.onload = async function(event) {
+        const base64Data = event.target.result.split(',')[1];
+        
+        // 2. Generate a safe filename (adds timestamp to prevent overwrite errors)
+        const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileName = Date.now() + "_" + cleanName;
+        
+        // 3. Push to GitHub API
+        const apiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${REPO_NAME}/contents/pdfs/${fileName}`;
+        
+        try {
+          const response = await fetch(apiUrl, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${currentToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              message: `Upload worksheet: ${cleanName}`,
+              content: base64Data
+            })
+          });
+
+          if (!response.ok) throw new Error("Upload failed. Check token.");
+
+          // 4. Generate the final Google Classroom URL
+          // Assumes you are using GitHub Pages and your viewer is called worksheet.html
+          const pagesUrl = `https://${GITHUB_USERNAME}.github.io/${REPO_NAME}/worksheet.html?pdf=pdfs/${fileName}`;
+          
+          document.getElementById('linkOutput').value = pagesUrl;
+          statusDiv.innerText = "✅ Ready!";
+          resultDiv.style.display = 'block';
+          uploadLabel.style.display = 'inline-block';
+          uploadLabel.innerText = "Upload Another PDF";
+
+        } catch (error) {
+          statusDiv.innerText = "❌ Error: " + error.message;
+          uploadLabel.style.display = 'inline-block';
+          // If it fails, maybe token is bad. Show setup again.
+          localStorage.removeItem('gh_token');
+          document.getElementById('setupSection').style.display = 'block';
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function copyLink() {
+      const output = document.getElementById('linkOutput');
+      output.select();
+      document.execCommand('copy');
+      const btn = document.querySelector('.copy-btn');
+      btn.innerText = '✅ Copied!';
+      setTimeout(() => { btn.innerText = '2. Copy Link for Classroom'; }, 2000);
+    }
+  </script>
+</body>
+</html>
