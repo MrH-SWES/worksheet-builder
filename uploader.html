@@ -53,12 +53,25 @@
     const GITHUB_USERNAME = "MrH-SWES"; 
     const REPO_NAME = "worksheet-builder"; 
 
+    // --- MAGIC LINK LOGIC ---
+    // Check if the URL has ?token= in it
+    const urlParams = new URLSearchParams(window.location.search);
+    const magicToken = urlParams.get('token');
+
+    if (magicToken) {
+      // Save it secretly and immediately wipe the URL clean
+      localStorage.setItem('gh_token', magicToken);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     let currentToken = localStorage.getItem('gh_token');
+    
     if (currentToken) {
       document.getElementById('setupSection').style.display = 'none';
       document.getElementById('mainSection').style.display = 'block';
     }
 
+    // Manual save fallback (just in case)
     function saveToken() {
       const token = document.getElementById('tokenInput').value.trim();
       if (token) {
@@ -105,7 +118,6 @@
 
           if (!response.ok) throw new Error("Upload failed. Check token.");
 
-          // Directs to index.html in your repo root
           const pagesUrl = `https://${GITHUB_USERNAME}.github.io/${REPO_NAME}/index.html?pdf=pdfs/${fileName}`;
           
           document.getElementById('linkOutput').value = pagesUrl;
