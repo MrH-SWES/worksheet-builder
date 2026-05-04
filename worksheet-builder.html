@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Tool: Worksheet Compiler</title>
+    <style>
+        body { font-family: sans-serif; background-color: #f0f0f0; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; max-width: 500px; }
+        h2 { margin-top: 0; color: #333; }
+        p { color: #666; margin-bottom: 25px; line-height: 1.5; }
+        .btn { background-color: #2196F3; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        .btn:hover { background-color: #1976D2; }
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>🛠️ Worksheet Compiler</h2>
+        <p>Select a PDF. This tool will convert it into a self-contained, interactive HTML file that you can upload directly to Google Classroom. Students will not need to load anything.</p>
+        
+        <label for="pdfInput" class="btn">Select PDF to Compile</label>
+        <input type="file" id="pdfInput" accept="application/pdf">
+        
+        <p id="status" style="margin-top: 20px; font-weight: bold; color: #4CAF50; display: none;">✅ Fused and Downloaded!</p>
+    </div>
+
+    <script>
+        document.getElementById('pdfInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                // This gives us the PDF as a Base64 Data URL
+                const base64PDF = event.target.result;
+                generateStudentHTML(base64PDF, file.name);
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function generateStudentHTML(base64Data, originalName) {
+            // We are building the exact tool from earlier, but injecting the base64 string
+            const studentHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Worksheet</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"><\/script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';<\/script>
+    <style>
+        body { margin: 0; padding: 0; background-color: #2c2c2c; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #toolbar { background-color: #1a1a1a; color: white; padding: 15px; display: flex; gap: 15px; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 4px 6px rgba(0,0,0,0.3); flex-wrap: wrap; }
+        .btn { background-color: #4a4a4a; color: white; padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; transition: background 0.2s; display: flex; align-items: center; gap: 5px; }
+        .btn:hover { background-color: #666; }
+        .btn.active { background-color: #2196F3; }
+        .color-btn { width: 30px; height: 30px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; transition: transform 0.1s;}
+        .color-btn.active { border-color: white; transform: scale(1.15); }
+        #workspace { flex-grow: 1; position: relative; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 30px; }
+        .canvas-layer { position: absolute; background-color: transparent; box-shadow: 0 8px 16px rgba(0,0,0,0.2); transform-origin: top center;}
+        #pdfCanvas { background-color: white; z-index: 1; }
+        #inkCanvas { z-index: 2; touch-action: none; cursor: crosshair; }
+        .divider { width: 2px; height: 30px; background: #444; margin: 0 5px; }
+        .tool-group { display: flex; align-items: center; gap: 10px; background: #333; padding: 5px 15px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <div class="tool-group">
+            <button class="btn active" id="drawModeBtn" onclick="setMode('draw')">✏️ Draw</button>
+            <button class="btn" id="textModeBtn" onclick="setMode('text')">🔤 Text</button>
+            <input type="range" id="penSize" min="1" max="20" value="4" style="width: 80px;" title="Tool Size">
+        </div>
+        <div class="divider"></div>
+        <div class="tool-group">
+            <button class="color-btn active" style="background-color: #000000;" onclick="setColor('#000000', this)"></button>
+            <button class="color-btn" style="background-color: #E53935;" onclick="setColor('#E53935', this)"></button>
+            <button class="color-btn" style="background-color: #1E88E5;" onclick="setColor('#1E88E5', this)"></button>
+            <button class="color-btn" style="background-color: #FDD835;" onclick="setColor('#FDD835', this)"></button>
+        </div>
+        <div class="divider"></div>
+        <button class="btn" onclick="undo()" title="Undo (Ctrl+Z)">↩️ Undo</button>
+        <button class="btn" onclick="clearInk()">🗑️ Clear</button>
+        <button class="btn" style="background-color: #F57C00;" onclick="saveWork()">💾 Save</button>
+    </div>
+    <div id="workspace">
+        <canvas id="pdfCanvas" class="canvas-layer"></canvas>
+        <canvas id="inkCanvas" class="canvas-layer"></canvas>
+    </div>
+    <script>
+        const PRELOADED_PDF = "${base64Data}";
+        
+        const pdfCanvas = document.getElementById('pdfCanvas');
+        const pdfCtx = pdfCanvas.getContext('2d');
+        const inkCanvas = document.getElementById('inkCanvas');
+        const inkCtx = inkCanvas.getContext('2d');
+        const penSizeInput = document.getElementById('penSize');
+        
+        let isDrawing = false;
+        let strokeColor = '#000000';
+        let currentMode = 'draw'; 
+        let savedImageData;
+        let startX, startY;
+        let activeTextInput = null;
+        let undoStack = [];
+        const MAX_UNDO_STEPS = 30;
+
+        // Load the hardcoded PDF immediately on startup
+        window.onload = function() {
+            // Strip the Data URL prefix to get the raw base64 string
+            const base64Marker = ';base64,';
+            const base64Index = PRELOADED_PDF.indexOf(base64Marker) + base64Marker.length;
+            const rawBase64 = PRELOADED_PDF.substring(base64Index);
+            const raw = atob(rawBase64);
+            const uint8Array = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) {
+                uint8Array[i] = raw.charCodeAt(i);
+            }
+            
+            pdfjsLib.getDocument(uint8Array).promise.then(pdf => {
+                pdf.getPage(1).then(page => {
+                    const viewport = page.getViewport({ scale: 1.5 }); 
+                    pdfCanvas.width = viewport.width;
+                    pdfCanvas.height = viewport.height;
+                    inkCanvas.width = viewport.width;
+                    inkCanvas.height = viewport.height;
+                    page.render({ canvasContext: pdfCtx, viewport: viewport });
+                });
+            });
+        };
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('drawModeBtn').classList.toggle('active', mode === 'draw');
+            document.getElementById('textModeBtn').classList.toggle('active', mode === 'text');
+            inkCanvas.style.cursor = mode === 'text' ? 'text' : 'crosshair';
+            finalizeText(); 
+        }
+
+        function setColor(color, btn) {
+            strokeColor = color;
+            document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            if (activeTextInput) activeTextInput.element.style.color = color;
+        }
+
+        function saveUndoState() {
+            if (inkCanvas.width > 0 && inkCanvas.height > 0) {
+                undoStack.push(inkCtx.getImageData(0, 0, inkCanvas.width, inkCanvas.height));
+                if (undoStack.length > MAX_UNDO_STEPS) undoStack.shift();
+            }
+        }
+
+        function undo() {
+            if (activeTextInput) {
+                document.body.removeChild(activeTextInput.element);
+                activeTextInput = null;
+                return;
+            }
+            if (undoStack.length > 0) {
+                const previousState = undoStack.pop();
+                inkCtx.putImageData(previousState, 0, 0);
+            }
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+        });
+
+        function clearInk() {
+            if (activeTextInput) { document.body.removeChild(activeTextInput.element); activeTextInput = null; }
+            saveUndoState();
+            inkCtx.clearRect(0, 0, inkCanvas.width, inkCanvas.height);
+        }
+
+        function getCoordinates(e) {
+            const rect = inkCanvas.getBoundingClientRect();
+            const scaleX = inkCanvas.width / rect.width;
+            const scaleY = inkCanvas.height / rect.height;
+            let clientX = e.clientX, clientY = e.clientY;
+            if (e.type.includes('touch')) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }
+            return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY, clientX: clientX, clientY: clientY };
+        }
+
+        function startInteraction(e) {
+            if (currentMode === 'text') { handleTextClick(e); return; }
+            saveUndoState();
+            isDrawing = true;
+            const coords = getCoordinates(e);
+            startX = coords.x; startY = coords.y;
+            savedImageData = inkCtx.getImageData(0, 0, inkCanvas.width, inkCanvas.height);
+            draw(e);
+        }
+
+        function endInteraction() {
+            if (currentMode === 'draw' && isDrawing) { isDrawing = false; inkCtx.beginPath(); }
+        }
+
+        function draw(e) {
+            if (!isDrawing || currentMode !== 'draw') return;
+            e.preventDefault(); 
+            const coords = getCoordinates(e);
+            inkCtx.lineWidth = penSizeInput.value;
+            inkCtx.lineCap = 'round';
+            inkCtx.lineJoin = 'round';
+            inkCtx.strokeStyle = strokeColor;
+            if (e.ctrlKey) {
+                inkCtx.putImageData(savedImageData, 0, 0);
+                inkCtx.beginPath();
+                inkCtx.moveTo(startX, startY);
+                inkCtx.lineTo(coords.x, coords.y);
+                inkCtx.stroke();
+            } else {
+                inkCtx.lineTo(coords.x, coords.y);
+                inkCtx.stroke();
+                inkCtx.beginPath();
+                inkCtx.moveTo(coords.x, coords.y);
+            }
+        }
+
+        function handleTextClick(e) {
+            if (activeTextInput) { finalizeText(); return; }
+            const coords = getCoordinates(e);
+            const fontSizePx = parseInt(penSizeInput.value) * 3 + 12; 
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.style.position = 'absolute';
+            input.style.left = coords.clientX + 'px';
+            input.style.top = (coords.clientY - (fontSizePx/2)) + 'px';
+            input.style.fontSize = fontSizePx + 'px';
+            input.style.color = strokeColor;
+            input.style.background = 'rgba(255, 255, 255, 0.9)';
+            input.style.border = '2px dashed #000';
+            input.style.outline = 'none';
+            input.style.fontFamily = 'sans-serif';
+            input.style.zIndex = 1000;
+            input.style.padding = '2px 5px';
+            input.placeholder = "Type here...";
+            document.body.appendChild(input);
+            input.focus();
+            activeTextInput = { element: input, x: coords.x, y: coords.y, size: fontSizePx };
+            input.addEventListener('keydown', function(evt) { if (evt.key === 'Enter') finalizeText(); });
+        }
+
+        function finalizeText() {
+            if (!activeTextInput) return;
+            const text = activeTextInput.element.value;
+            if (text.trim() !== '') {
+                saveUndoState(); 
+                inkCtx.font = \`bold \${activeTextInput.size}px sans-serif\`;
+                inkCtx.fillStyle = activeTextInput.element.style.color;
+                inkCtx.fillText(text, activeTextInput.x, activeTextInput.y + (activeTextInput.size / 3)); 
+            }
+            document.body.removeChild(activeTextInput.element);
+            activeTextInput = null;
+        }
+
+        function saveWork() {
+            finalizeText(); 
+            const compCanvas = document.createElement('canvas');
+            compCanvas.width = pdfCanvas.width;
+            compCanvas.height = pdfCanvas.height;
+            const compCtx = compCanvas.getContext('2d');
+            compCtx.fillStyle = "#ffffff";
+            compCtx.fillRect(0, 0, compCanvas.width, compCanvas.height);
+            compCtx.drawImage(pdfCanvas, 0, 0);
+            compCtx.drawImage(inkCanvas, 0, 0);
+            const link = document.createElement('a');
+            link.download = 'Completed-Worksheet.png';
+            link.href = compCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+        inkCanvas.addEventListener('mousedown', startInteraction);
+        inkCanvas.addEventListener('mouseup', endInteraction);
+        inkCanvas.addEventListener('mousemove', draw);
+        inkCanvas.addEventListener('mouseout', endInteraction);
+        inkCanvas.addEventListener('touchstart', startInteraction, {passive: false});
+        inkCanvas.addEventListener('touchend', endInteraction);
+        inkCanvas.addEventListener('touchmove', draw, {passive: false});
+    <\/script>
+</body>
+</html>`;
+
+            // Trigger download of the fused HTML file
+            const cleanName = originalName.replace('.pdf', '');
+            const blob = new Blob([studentHTML], { type: 'text/html' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Interactive_${cleanName}.html`;
+            link.click();
+
+            // Show success message
+            const status = document.getElementById('status');
+            status.style.display = 'block';
+            setTimeout(() => status.style.display = 'none', 3000);
+            
+            // Reset input so you can do another one immediately
+            document.getElementById('pdfInput').value = '';
+        }
+    </script>
+</body>
+</html>
