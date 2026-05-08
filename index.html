@@ -262,7 +262,7 @@
             activeTextInput = null;
         }
 
-        // --- UPDATED EXPORT LOGIC ---
+// --- UPDATED EXPORT LOGIC ---
         async function saveWork() {
             finalizeText(); 
             
@@ -279,13 +279,8 @@
             const imageData = compCanvas.toDataURL('image/png');
             const studentName = prompt("Please enter your name:") || "Anonymous";
 
-            // --- ACTION REQUIRED: PASTE YOUR DEPLOYED URL BELOW ---
-            const scriptURL = https://script.google.com/a/macros/sw.wednet.edu/s/AKfycbytRlJEu-BmmqUBaGcWZv2UnUpEG-cn61kR1Fb5cx99MXNtlFC9clzFbMdCuDtV12CJeg/exec";
-
-            if (scriptURL === "PASTE HERE") {
-                alert("Teacher: You must paste your Web App URL into the HTML code for this to work!");
-                return;
-            }
+            // FIXED: Added the missing opening " and removed the broken IF check
+            const scriptURL = "https://script.google.com/a/macros/sw.wednet.edu/s/AKfycbytRlJEu-BmmqUBaGcWZv2UnUpEG-cn61kR1Fb5cx99MXNtlFC9clzFbMdCuDtV12CJeg/exec";
 
             try {
                 // Show a simple loading state
@@ -296,7 +291,7 @@
 
                 await fetch(scriptURL, {
                     method: 'POST',
-                    mode: 'no-cors', // Required for Google Apps Script
+                    mode: 'no-cors', 
                     body: JSON.stringify({
                         image: imageData,
                         filename: studentName + "-Worksheet.png"
@@ -310,7 +305,6 @@
                 console.error("Save failed:", error);
                 alert("Automatic save failed. Please download the image manually instead.");
                 
-                // Fallback: Trigger a manual download if the script fails
                 const link = document.createElement('a');
                 link.download = studentName + '-Worksheet.png';
                 link.href = imageData;
