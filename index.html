@@ -48,7 +48,7 @@
         
         <button class="btn" onclick="undo()" title="Undo (Ctrl+Z)">↩️ Undo</button>
         <button class="btn" onclick="clearInk()">🗑️ Clear</button>
-        <button class="btn" style="background-color: #F57C00;" onclick="saveWork()">💾 Save Image</button>
+        <button class="btn" style="background-color: #F57C00;" onclick="saveWork()">💾 Save to Drive</button>
     </div>
 
     <div id="workspace">
@@ -74,7 +74,6 @@
         let undoStack = [];
         const MAX_UNDO_STEPS = 30;
 
-        // --- AUTOMATIC PDF LOADING ---
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
             const pdfFile = urlParams.get('pdf');
@@ -101,7 +100,6 @@
             }).catch(err => console.error("Error loading PDF: ", err));
         }
 
-        // --- UI & STATE LOGIC ---
         function setMode(mode) {
             currentMode = mode;
             document.getElementById('drawModeBtn').classList.toggle('active', mode === 'draw');
@@ -117,7 +115,6 @@
             if (activeTextInput) activeTextInput.element.style.color = color;
         }
 
-        // --- UNDO LOGIC ---
         function saveUndoState() {
             if (inkCanvas.width > 0 && inkCanvas.height > 0) {
                 undoStack.push(inkCtx.getImageData(0, 0, inkCanvas.width, inkCanvas.height));
@@ -153,7 +150,6 @@
             inkCtx.clearRect(0, 0, inkCanvas.width, inkCanvas.height);
         }
 
-        // --- DRAWING & TEXT LOGIC ---
         function getCoordinates(e) {
             const rect = inkCanvas.getBoundingClientRect();
             const scaleX = inkCanvas.width / rect.width;
@@ -266,8 +262,8 @@
             activeTextInput = null;
         }
 
-        // --- EXPORT LOGIC ---
-        function saveWork() {
+        // --- UPDATED EXPORT LOGIC ---
+        async function saveWork() {
             finalizeText(); 
             
             const compCanvas = document.createElement('canvas');
@@ -277,14 +273,49 @@
             
             compCtx.fillStyle = "#ffffff";
             compCtx.fillRect(0, 0, compCanvas.width, compCanvas.height);
-            
             compCtx.drawImage(pdfCanvas, 0, 0);
             compCtx.drawImage(inkCanvas, 0, 0);
             
-            const link = document.createElement('a');
-            link.download = 'Completed-Worksheet.png';
-            link.href = compCanvas.toDataURL('image/png');
-            link.click();
+            const imageData = compCanvas.toDataURL('image/png');
+            const studentName = prompt("Please enter your name:") || "Anonymous";
+
+            // --- ACTION REQUIRED: PASTE YOUR DEPLOYED URL BELOW ---
+            const scriptURL = "https://script.google.com/a/macros/sw.wednet.edu/s/AKfycbyYjcokpMV0TxBI9jN59alP9rzgSok5hsnGhXgJJ-J8MwmVftrGROQ7AIwqNO1fEtcN7Q/exec";
+
+            if (scriptURL === "https://script.google.com/a/macros/sw.wednet.edu/s/AKfycbyYjcokpMV0TxBI9jN59alP9rzgSok5hsnGhXgJJ-J8MwmVftrGROQ7AIwqNO1fEtcN7Q/exec") {
+                alert("Teacher: You must paste your Web App URL into the HTML code for this to work!");
+                return;
+            }
+
+            try {
+                // Show a simple loading state
+                const btn = document.querySelector('button[onclick="saveWork()"]');
+                const originalText = btn.innerText;
+                btn.innerText = "⏳ Saving...";
+                btn.disabled = true;
+
+                await fetch(scriptURL, {
+                    method: 'POST',
+                    mode: 'no-cors', // Required for Google Apps Script
+                    body: JSON.stringify({
+                        image: imageData,
+                        filename: studentName + "-Worksheet.png"
+                    })
+                });
+
+                alert("Work sent to " + studentName + "'s teacher folder successfully!");
+                btn.innerText = originalText;
+                btn.disabled = false;
+            } catch (error) {
+                console.error("Save failed:", error);
+                alert("Automatic save failed. Please download the image manually instead.");
+                
+                // Fallback: Trigger a manual download if the script fails
+                const link = document.createElement('a');
+                link.download = studentName + '-Worksheet.png';
+                link.href = imageData;
+                link.click();
+            }
         }
 
         inkCanvas.addEventListener('mousedown', startInteraction);
